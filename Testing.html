@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Drop: Ticket Speed Trainer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 400px; text-align: center; }
+        h1 { color: #333; margin-bottom: 0.5rem; }
+        .hidden { display: none; }
+        
+        /* Buttons */
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.2s; width: 100%; margin-top: 10px; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-success { background-color: #28a745; color: white; }
+        
+        /* Stage 1: Queue */
+        .queue-box { border: 2px dashed #ccc; padding: 20px; background: #fafafa; }
+        .status-dot { height: 15px; width: 15px; background-color: red; border-radius: 50%; display: inline-block; margin-right: 10px; }
+        .live { background-color: #28a745; box-shadow: 0 0 10px #28a745; }
+
+        /* Stage 2: Seats */
+        .seat-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 15px 0; }
+        .seat { width: 30px; height: 30px; border-radius: 4px; background-color: #e0e0e0; cursor: not-allowed; }
+        .seat.available { background-color: #007bff; cursor: pointer; }
+        .seat.available:hover { background-color: #0056b3; }
+        .seat.selected { background-color: #28a745; box-shadow: inset 0 0 0 2px white; }
+        .seat.taken { background-color: #ccc; opacity: 0.5; }
+
+        /* Stage 3: Checkout */
+        .checkout-form input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+        .cvv-target { font-weight: bold; font-size: 1.2rem; color: #d9534f; }
+        
+        /* Timer */
+        #timer { font-size: 1.5rem; font-weight: bold; color: #333; margin-bottom: 20px; }
+        .result-time { font-size: 2rem; color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="timer">0.000s</div>
+
+        <div id="screen-intro">
+            <h1>The Drop</h1>
+            <p>Train your ticket buying reflexes.</p>
+            <p><small>Goal: Refresh, Pick 2 Seats, Enter CVV.</small></p>
+            <button class="btn btn-primary" onclick="startGame()">Start Training</button>
+        </div>
+
+        <div id="screen-queue" class="hidden">
+            <h2>Stage 1: The Queue</h2>
+            <div class="queue-box">
+                <span id="queue-dot" class="status-dot"></span> <span id="queue-text">WAITING FOR TICKETS...</span>
+            </div>
+            <button id="btn-join" class="btn btn-primary" disabled onclick="passQueue()">JOIN QUEUE</button>
+        </div>
+
+        <div id="screen-seats" class="hidden">
+            <h2>Stage 2: Pick 2 Seats</h2>
+            <p>Find blue seats. Avoid gray ones.</p>
+            <div class="seat-grid" id="seat-map"></div>
+            <button id="btn-buy" class="btn btn-primary" disabled onclick="passSeats()">PROCEED TO CHECKOUT</button>
+        </div>
+
+        <div id="screen-checkout" class="hidden">
+            <h2>Stage 3: Verify</h2>
+            <p>Security Check. Enter Code: <span id="cvv-target" class="cvv-target">000</span></p>
+            <div class="checkout-form">
+                <input type="number" id="cvv-input" placeholder="Enter code here" autocomplete="off">
+            </div>
+            <button class="btn btn-success" onclick="finishGame()">CONFIRM PURCHASE</button>
+        </div>
+
+        <div id="screen-result" class="hidden">
+            <h1>GOT 'EM!</h1>
+            <p>Your Total Time:</p>
+            <div class="result-time" id="final-time">0.000s</div>
+            <p id="grade-text"></p>
+            <button class="btn btn-primary" onclick="location.reload()">Train Again</button>
+        </div>
+    </div>
+
+    <script>
+        let startTime, timerInterval;
+        let selectedSeats = 0;
+        let targetCVV = 0;
+
+        function updateTimer() {
+            const now = Date.now();
+            const timePassed = (now - startTime) / 1000;
+            document.getElementById('timer').innerText = timePassed.toFixed(3) + 's';
+        }
+
+        function switchScreen(id) {
+            document.querySelectorAll('.container > div:not(#timer)').forEach(el => el.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function startGame() {
+            switchScreen('screen-queue');
+            
+            // Random wait time between 1s and 4s
+            const waitTime = Math.random() * 3000 + 1000;
+            
+            setTimeout(() => {
+                document.getElementById('queue-dot').classList.add('live');
+                document.getElementById('queue-text').innerText = "TICKETS LIVE!";
+                document.getElementById('btn-join').disabled = false;
+                document.getElementById('btn-join').classList.add('btn-success');
+                
+                // START THE TIMER NOW
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 10);
+            }, waitTime);
+        }
+
+        function passQueue() {
+            generateSeats();
+            switchScreen('screen-seats');
+        }
+
+        function generateSeats() {
+            const grid = document.getElementById('seat-map');
+            grid.innerHTML = '';
+            selectedSeats = 0;
+            document.getElementById('btn-buy').disabled = true;
+
+            // Generate 48 seats
+            for (let i = 0; i < 48; i++) {
+                const seat = document.createElement('div');
+                seat.classList.add('seat');
+                
+                // 30% chance seat is available, 70% taken
+                if (Math.random() > 0.7) {
+                    seat.classList.add('available');
+                    seat.onclick = () => toggleSeat(seat);
+                } else {
+                    seat.classList.add('taken');
+                }
+                grid.appendChild(seat);
+            }
+        }
+
+        function toggleSeat(seat) {
+            if (seat.classList.contains('selected')) {
+                seat.classList.remove('selected');
+                selectedSeats--;
+            } else {
+                if (selectedSeats < 2) {
+                    seat.classList.add('selected');
+                    selectedSeats++;
+                }
+            }
+
+            // Enable button if 2 seats selected
+            document.getElementById('btn-buy').disabled = (selectedSeats !== 2);
+        }
+
+        function passSeats() {
+            // Setup checkout
+            targetCVV = Math.floor(Math.random() * 899) + 100; // Random 3 digit number
+            document.getElementById('cvv-target').innerText = targetCVV;
+            switchScreen('screen-checkout');
+            document.getElementById('cvv-input').focus();
+        }
+
+        function finishGame() {
+            const inputVal = document.getElementById('cvv-input').value;
+            if (parseInt(inputVal) === targetCVV) {
+                clearInterval(timerInterval);
+                const finalTime = document.getElementById('timer').innerText;
+                document.getElementById('final-time').innerText = finalTime;
+                ratePerformance(parseFloat(finalTime));
+                switchScreen('screen-result');
+            } else {
+                alert("WRONG CODE! TRY AGAIN!");
+                document.getElementById('cvv-input').value = '';
+                document.getElementById('cvv-input').focus();
+            }
+        }
+
+        function ratePerformance(time) {
+            let text = "";
+            if (time < 3.5) text = "Ranking: BOT LEVEL 🤖 (Incredible)";
+            else if (time < 5.0) text = "Ranking: SCALPER DESTROYER 🔥";
+            else if (time < 7.0) text = "Ranking: CASUAL FAN 🎵";
+            else text = "Ranking: SOLD OUT ❌";
+            document.getElementById('grade-text').innerText = text;
+        }
+    </script>
+</body>
+</html>
